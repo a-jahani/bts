@@ -25,6 +25,7 @@ import errno
 import matplotlib.pyplot as plt
 import cv2
 import sys
+from tqdm import tqdm
 
 from bts_dataloader import *
 
@@ -50,11 +51,6 @@ parser.add_argument('--input_width',         type=int,   help='input width', def
 parser.add_argument('--max_depth',           type=float, help='maximum depth in estimation', default=80)
 parser.add_argument('--checkpoint_path',     type=str,   help='path to a specific checkpoint to load', default='')
 parser.add_argument('--dataset',             type=str,   help='dataset to train on, make3d or nyudepthv2', default='nyu')
-
-parser.add_argument('--do_resize',                       help='if set, resize input images', action='store_true')
-parser.add_argument('--resize_height',       type=int,   help='resize height for input', default=-1)
-parser.add_argument('--resize_width',        type=int,   help='resize width for input',  default=-1)
-parser.add_argument('--save_png',                        help='if set, just saves results to png and quits', action='store_true')
 parser.add_argument('--do_kb_crop',                      help='if set, crop input images as kitti benchmark images', action='store_true')
 
 if sys.argv.__len__() == 2:
@@ -82,9 +78,7 @@ def get_num_lines(file_path):
 def test(params):
     """Test function."""
     
-    dataloader = BtsDataloader(args.data_path, None, args.filenames_file, params, 'test',
-                               do_resize=args.do_resize, resize_height=args.resize_height, resize_width=args.resize_width,
-                               do_kb_crop=args.do_kb_crop)
+    dataloader = BtsDataloader(args.data_path, None, args.filenames_file, params, 'test', do_kb_crop=args.do_kb_crop)
 
     dataloader_iter = dataloader.loader.make_initializable_iterator()
     iter_init_op = dataloader_iter.initializer
@@ -125,7 +119,8 @@ def test(params):
         pred_2x2s = []
 
         start_time = time.time()
-        for s in range(num_test_samples):
+        print('Processing images..')
+        for s in tqdm(range(num_test_samples)):
             depth, pred_8x8, pred_4x4, pred_2x2 = sess.run([model.depth_est, model.depth_8x8, model.depth_4x4, model.depth_2x2])
             pred_depths.append(depth[0].squeeze())
 
@@ -133,17 +128,11 @@ def test(params):
             pred_4x4s.append(pred_4x4[0].squeeze())
             pred_2x2s.append(pred_2x2[0].squeeze())
 
-            print('{}/{} processing done'.format(s+1, num_test_samples))
-
-        elapsed_time = time.time() - start_time
-        print('Elapesed time: %s' % str(elapsed_time))
         print('Done.')
 
         save_name = 'result_' + args.model_name
-        if args.do_resize:
-            save_name = save_name + '_resized'
 
-        print('Saving result pngs')
+        print('Saving result pngs..')
         if not os.path.exists(os.path.dirname(save_name)):
             try:
                 os.mkdir(save_name)
@@ -154,7 +143,7 @@ def test(params):
                 if e.errno != errno.EEXIST:
                     raise
 
-        for s in range(num_test_samples):
+        for s in tqdm(range(num_test_samples)):
             if args.dataset == 'kitti':
                 date_drive = lines[s].split('/')[1]
                 filename_png = save_name + '/raw/' + date_drive + '_' + lines[s].split()[0].split('/')[-1].replace('.jpg', '.png')
@@ -177,10 +166,6 @@ def test(params):
             pred_4x4 = pred_4x4s[s]
             pred_2x2 = pred_2x2s[s]
 
-            if args.do_resize:
-                h, w, _ = image.shape
-                pred_depth = cv2.resize(pred_depth, (w, h), interpolation=cv2.INTER_LINEAR)
-
             if args.dataset == 'kitti' or args.dataset == 'kitti_benchmark':
                 pred_depth_scaled = pred_depth * 256.0
             else:
@@ -190,7 +175,6 @@ def test(params):
             cv2.imwrite(filename_png, pred_depth_scaled, [cv2.IMWRITE_PNG_COMPRESSION, 0])
 
             cv2.imwrite(filename_image_png, image)
-
             if args.dataset == 'nyu':
                 pred_depth_cropped = np.zeros((480, 640), dtype=np.float32) + 1
                 pred_depth_cropped[10:-1 - 10, 10:-1 - 10] = pred_depth[10:-1 - 10, 10:-1 - 10]
@@ -215,8 +199,6 @@ def test(params):
                 plt.imsave(filename_lpg_cmap_png, np.log10(pred_4x4), cmap='Greys')
                 filename_lpg_cmap_png = filename_cmap_png.replace('.png', '_2x2.png')
                 plt.imsave(filename_lpg_cmap_png, np.log10(pred_2x2), cmap='Greys')
-
-            print('{}/{} saving done'.format(s+1, num_test_samples))
 
         return
 

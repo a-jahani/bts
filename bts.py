@@ -311,24 +311,26 @@ class BtsModel(object):
             self.depth_4x4 = depth_4x4_scaled
             self.depth_8x8 = depth_8x8_scaled
 
-            print(" upconv5 in/out: {:>4} /{:>4}".format(dense_features.shape[-1], upconv5.shape[-1]))
-            print("  iconv5 in/out: {:>4} /{:>4}".format(concat5.shape[-1], iconv5.shape[-1]))
-            print(" upconv4 in/out: {:>4} /{:>4}".format(iconv5.shape[-1], upconv4.shape[-1]))
-            print("  iconv4 in/out: {:>4} /{:>4}".format(concat4.shape[-1], iconv4.shape[-1]))
-            print("    aspp in/out: {:>4} /{:>4}".format(concat4_daspp.shape[-1], daspp_feat.shape[-1]))
-            print("reduc8x8 in/out: {:>4} /{:>4}".format(daspp_feat.shape[-1], rconv1_8x8.shape[-1]))
-            print("  lpg8x8 in/out: {:>4} /{:>4}".format(plane_eq_8x8.shape[-1], 1))
-            print(" upconv3 in/out: {:>4} /{:>4}".format(daspp_feat.shape[-1], upconv3.shape[-1]))
-            print("  iconv3 in/out: {:>4} /{:>4}".format(concat3.shape[-1], iconv3.shape[-1]))
-            print("reduc4x4 in/out: {:>4} /{:>4}".format(iconv3.shape[-1], rconv1_4x4.shape[-1]))
-            print("  lpg4x4 in/out: {:>4} /{:>4}".format(plane_eq_4x4.shape[-1], 1))
-            print(" upconv2 in/out: {:>4} /{:>4}".format(iconv3.shape[-1], upconv2.shape[-1]))
-            print("  iconv2 in/out: {:>4} /{:>4}".format(concat2.shape[-1], iconv2.shape[-1]))
-            print("reduc2x2 in/out: {:>4} /{:>4}".format(iconv2.shape[-1], rconv1_2x2.shape[-1]))
-            print("  lpg2x2 in/out: {:>4} /{:>4}".format(plane_eq_2x2.shape[-1], 1))
-            print(" upconv1 in/out: {:>4} /{:>4}".format(iconv2.shape[-1], upconv1.shape[-1]))
-            print("  iconv1 in/out: {:>4} /{:>4}".format(concat1.shape[-1], iconv1.shape[-1]))
-            print("   depth in/out: {:>4} /{:>4}".format(iconv1.shape[-1], self.depth_est.shape[-1]))
+            print("==================================")
+            print(" upconv5 in/out: {} / {}".format(dense_features.shape[-1], upconv5.shape[-1]))
+            print("  iconv5 in/out: {} / {}".format(concat5.shape[-1], iconv5.shape[-1]))
+            print(" upconv4 in/out: {} / {}".format(iconv5.shape[-1], upconv4.shape[-1]))
+            print("  iconv4 in/out: {} / {}".format(concat4.shape[-1], iconv4.shape[-1]))
+            print("    aspp in/out: {} / {}".format(concat4_daspp.shape[-1], daspp_feat.shape[-1]))
+            print("reduc8x8 in/out: {} / {}".format(daspp_feat.shape[-1], rconv1_8x8.shape[-1]))
+            print("  lpg8x8 in/out: {} / {}".format(plane_eq_8x8.shape[-1], 1))
+            print(" upconv3 in/out: {} / {}".format(daspp_feat.shape[-1], upconv3.shape[-1]))
+            print("  iconv3 in/out: {} / {}".format(concat3.shape[-1], iconv3.shape[-1]))
+            print("reduc4x4 in/out: {} / {}".format(iconv3.shape[-1], rconv1_4x4.shape[-1]))
+            print("  lpg4x4 in/out: {} / {}".format(plane_eq_4x4.shape[-1], 1))
+            print(" upconv2 in/out: {} / {}".format(iconv3.shape[-1], upconv2.shape[-1]))
+            print("  iconv2 in/out: {} / {}".format(concat2.shape[-1], iconv2.shape[-1]))
+            print("reduc2x2 in/out: {} / {}".format(iconv2.shape[-1], rconv1_2x2.shape[-1]))
+            print("  lpg2x2 in/out: {} / {}".format(plane_eq_2x2.shape[-1], 1))
+            print(" upconv1 in/out: {} / {}".format(iconv2.shape[-1], upconv1.shape[-1]))
+            print("  iconv1 in/out: {} / {}".format(concat1.shape[-1], iconv1.shape[-1]))
+            print("   depth in/out: {} / {}".format(iconv1.shape[-1], self.depth_est.shape[-1]))
+            print("==================================")
 
     def build_densenet121_bts(self, net_input, reuse):
         with tf.variable_scope('encoder'):
@@ -372,10 +374,7 @@ class BtsModel(object):
             depth_gt_masked = tf.boolean_mask(self.depth_gt, self.mask)
             depth_est_masked = tf.boolean_mask(self.depth_est, self.mask)
 
-            if self.params.dataset == 'nyu':
-                d = tf.log(depth_est_masked * 100) - tf.log(depth_gt_masked * 100)  # Best
-            else:
-                d = tf.log(depth_est_masked * 10) - tf.log(depth_gt_masked * 10)  # Best
+            d = tf.log(depth_est_masked) - tf.log(depth_gt_masked)  # Best
 
             self.silog_loss = tf.sqrt(tf.reduce_mean(d ** 2) - 0.85 * (tf.reduce_mean(d) ** 2)) * 10.0
             self.total_loss = self.silog_loss

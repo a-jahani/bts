@@ -52,9 +52,6 @@ parser.add_argument('--garg_crop',                       help='if set, crops acc
 
 parser.add_argument('--min_depth_eval',      type=float, help='minimum depth for evaluation',        default=1e-3)
 parser.add_argument('--max_depth_eval',      type=float, help='maximum depth for evaluation',        default=80)
-parser.add_argument('--do_resize',                       help='if set, resize input images',   action='store_true')
-parser.add_argument('--resize_height',       type=int,   help='resize height for input', default=-1)
-parser.add_argument('--resize_width',        type=int,   help='resize width for input',  default=-1)
 parser.add_argument('--do_kb_crop',                      help='if set, crop input images as kitti benchmark images', action='store_true')
 
 
@@ -67,7 +64,7 @@ else:
 model_dir = os.path.dirname(args.checkpoint_path)
 sys.path.append(model_dir)
 
-for key, val in vars(__import__(args.model_name)).iteritems():
+for key, val in vars(__import__(args.model_name)).items():
     if key.startswith('__') and key.endswith('__'):
         continue
     vars()[key] = val
@@ -75,7 +72,7 @@ for key, val in vars(__import__(args.model_name)).iteritems():
 
 def compute_errors(gt, pred):
     thresh = np.maximum((gt / pred), (pred / gt))
-    d1 = (thresh < 1.25   ).mean()
+    d1 = (thresh < 1.25).mean()
     d2 = (thresh < 1.25 ** 2).mean()
     d3 = (thresh < 1.25 ** 3).mean()
 
@@ -139,8 +136,20 @@ def test(params):
             summary_path = os.path.join(args.checkpoint_path, 'eval')
         write_summary = True
 
+    if len(steps) == 0:
+        print('No new model to evaluate. Abort.')
+        return
+
+    time_modified = os.path.getmtime(args.checkpoint_path + 'checkpoint')
+    time_diff = time.time() - time_modified
+    if time_diff < 60:
+        print('Model file might not be mature due to short time_diff: %s' % str(time_diff))
+        print('Aborting')
+        return
+    else:
+        print('time_diff: %s' % str(time_diff))
+
     dataloader = BtsDataloader(args.data_path, args.gt_path, args.filenames_file, params, 'test',
-                               do_resize=args.do_resize, resize_height=args.resize_height, resize_width=args.resize_width,
                                do_kb_crop=args.do_kb_crop)
 
     dataloader_iter = dataloader.loader.make_initializable_iterator()
@@ -172,7 +181,7 @@ def test(params):
                 restore_path = args.checkpoint_path
             else:
                 restore_path = os.path.join(args.checkpoint_path, 'model-' + str(int(step)))
-    
+
             # RESTORE
             train_saver.restore(sess, restore_path)
         
@@ -238,22 +247,13 @@ def test(params):
 def eval(pred_depths, step):
 
     num_samples = get_num_lines(args.filenames_file)
-    pred_depths_resized = []
+    pred_depths_valid = []
 
-    i = 0
     for t_id in range(num_samples):
         if t_id in missing_ids:
             continue
 
-        h, w = gt_depths[i].shape
-        i = i + 1
-        h_p, w_p = pred_depths[t_id].shape
-
-        if (h_p != h or w_p != w) and not args.do_kb_crop:
-            pred_depth_resized = cv2.resize(pred_depths[t_id], (w, h), interpolation=cv2.INTER_LINEAR)
-            pred_depths_resized.append(pred_depth_resized)
-        else:
-            pred_depths_resized.append(pred_depths[t_id])
+        pred_depths_valid.append(pred_depths[t_id])
 
     num_samples = num_samples - len(missing_ids)
 
@@ -270,7 +270,7 @@ def eval(pred_depths, step):
     for i in range(num_samples):
 
         gt_depth = gt_depths[i]
-        pred_depth = pred_depths_resized[i]
+        pred_depth = pred_depths_valid[i]
 
         if args.do_kb_crop:
             height, width = gt_depth.shape
